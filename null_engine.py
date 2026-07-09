@@ -64,6 +64,18 @@ AUTO_TASK_INTERVAL = 60 * 60                # 60 minut
 TON_API_URL = "https://toncenter.com/api/v2/getTransactions"
 
 # ---------------------------------------------------------------------------
+# NULL ENGINE AGENT – next-gen AI jádro
+# ---------------------------------------------------------------------------
+def _import_agent():
+    """Lazy import agentního modulu."""
+    try:
+        from ermp_core import agent as _agent_mod
+        return _agent_mod
+    except ImportError as e:
+        logger.error("ermp_core.agent nelze importovat: %s", e)
+        return None
+
+# ---------------------------------------------------------------------------
 # Načítání konfigurace
 # ---------------------------------------------------------------------------
 
@@ -516,42 +528,68 @@ async def cmd_vytvor(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
         parse_mode=ParseMode.MARKDOWN,
     )
 
-    # Načtení TON adresy a referral kódu z configu / DB
+    # Načtení referral kódu
     db = await load_db()
     user_data = db.get(str(user_id), {})
     ref_code = user_data.get("referral_code", "NULL")
 
-    # Generování
-    result = await generate_ermp_link(
-        description,
-        ton_address=TON_ADDRESS,
-        referral_code=ref_code,
+    # ── Agentní generování (next-gen AI) ────────────────────────────────────
+    agent_mod = _import_agent()
+    if agent_mod:
+        # Použij plnou agentní smyčku
+        loop = asyncio.get_event_loop()
+        try:
+            agent = agent_mod.create_agent(str(user_id), TON_ADDRESS, ref_code)
+            result = await loop.run_in_executor(None, agent.generate, description)
+            url        = result["url"]
+            output_type = result["type"]
+            title       = result.get("title", description[:40])
+            iterations  = result.get("iterations", 1)
+            emoji = TYPE_EMOJI.get(output_type, "🛠️")
+            type_labels = {
+                "game": "Hra", "web": "Web", "tool": "Nástroj",
+                "pwa": "Mobilní App", "script": "Skript",
+                "document": "Dokument", "quiz": "Kvíz", "dashboard": "Dashboard",
+            }
+            type_label = type_labels.get(output_type, output_type.capitalize())
+            iter_note = f" _(agent iteroval {iterations}×)_" if iterations > 1 else ""
+
+            # Uložit požadavek do DB
+            user_data.setdefault("requests", []).append(description)
+            db[str(user_id)] = user_data
+            await save_db(db)
+
+            # Autonomní návrh dalšího výtvoru
+            suggestion = await loop.run_in_executor(None, agent.suggest_next)
+            suggest_line = f"\n\n💡 _{suggestion}_" if suggestion else ""
+
+            await status_msg.edit_text(
+                f"✅ *{emoji} {type_label} vygenerován!*{iter_note}\n"
+                "──────────────────────\n"
+                f"🔗 {url}\n\n"
+                "_Ohodnoť výsledek: /hodnoceni 1-5_"
+                f"{suggest_line}",
+                parse_mode=ParseMode.MARKDOWN,
+            )
+            return
+        except Exception as e:
+            logger.error("Agent selhal, fallback na klasické generování: %s", e)
+
+    # ── Fallback: klasické generování ───────────────────────────────────────
+    result_fallback = await generate_ermp_link(
+        description, ton_address=TON_ADDRESS, referral_code=ref_code,
     )
-    if result is None:
+    if result_fallback is None:
         await status_msg.edit_text(
             "❌ Generování selhalo. Zkus to prosím znovu nebo upřesni popis."
         )
         return
-
-    url, output_type = result
+    url, output_type = result_fallback
     emoji = TYPE_EMOJI.get(output_type, "🛠️")
-    type_labels = {
-        "game": "Hra", "web": "Web", "tool": "Nástroj",
-        "pwa": "Mobilní App", "script": "Skript",
-        "document": "Dokument", "quiz": "Kvíz", "dashboard": "Dashboard",
-    }
-    type_label = type_labels.get(output_type, output_type.capitalize())
-
-    # Uložit požadavek do DB pro autonomní analýzu
-    user_data.setdefault("requests", []).append(description)
-    db[str(user_id)] = user_data
-    await save_db(db)
-
     await status_msg.edit_text(
-        f"✅ *{emoji} {type_label} vygenerován!*\n"
+        f"✅ *{emoji} Hotovo!*\n"
         "──────────────────────\n"
-        f"🔗 Odkaz: {url}\n\n"
-        "_Aplikace se otevře v prohlížeči. Po 24 hodinách se automaticky aktualizuje._\n\n"
+        f"🔗 {url}\n\n"
         "Díky za použití NULL ENGINE 🤖",
         parse_mode=ParseMode.MARKDOWN,
     )
@@ -569,6 +607,63 @@ async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         "/vytvor <popis> – generování aplikace\n"
         "/help – tato nápověda\n",
         parse_mode=ParseMode.MARKDOWN,
+    )
+
+
+async def cmd_moje(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Příkaz /moje – zobrazí historii výtvorů uživatele."""
+    if not update.effective_user or not update.message:
+        return
+    user_id = update.effective_user.id
+    agent_mod = _import_agent()
+    if agent_mod is None:
+        await update.message.reply_text("❌ Agent modul není dostupný.")
+        return
+    history = agent_mod.get_user_history(str(user_id))
+    if not history:
+        await update.message.reply_text(
+            "📭 Zatím nemáš žádné výtvory.\n\n"
+            "Napiš /vytvor <popis> a začni! 🚀"
+        )
+        return
+    lines = ["📚 *Tvoje výtvory:*\n──────────────────────"]
+    for i, c in enumerate(history[-8:], 1):
+        emoji = {"game":"🎮","web":"🌐","tool":"🛠️","pwa":"📱",
+                 "script":"💻","document":"📄","quiz":"🧠","dashboard":"📊"}.get(c.get("type","tool"),"🛠️")
+        score = f" ⭐{c['feedback_score']}/5" if c.get("feedback_score") else ""
+        lines.append(f"{i}. {emoji} [{c.get('type','?')}] {c.get('description','')[:40]}{score}\n   🔗 {c.get('url','')}")
+    await update.message.reply_text("\n".join(lines), parse_mode=ParseMode.MARKDOWN)
+
+
+async def cmd_hodnoceni(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Příkaz /hodnoceni <1-5> – hodnocení posledního výtvoru."""
+    if not update.effective_user or not update.message:
+        return
+    user_id = update.effective_user.id
+    args = context.args or []
+    if not args or not args[0].isdigit():
+        await update.message.reply_text(
+            "⭐ Ohodnoť poslední výtvor: /hodnoceni <1-5>\n"
+            "Příklad: /hodnoceni 5"
+        )
+        return
+    score = max(1, min(5, int(args[0])))
+    comment = " ".join(args[1:]) if len(args) > 1 else ""
+
+    agent_mod = _import_agent()
+    if agent_mod is None:
+        return
+    history = agent_mod.get_user_history(str(user_id))
+    if not history:
+        await update.message.reply_text("❌ Nemáš žádné výtvory k hodnocení.")
+        return
+    last = history[-1]
+    agent = agent_mod.create_agent(str(user_id), TON_ADDRESS)
+    agent.record_feedback(last["url"], score, comment)
+    stars = "⭐" * score
+    await update.message.reply_text(
+        f"{stars} Díky za hodnocení {score}/5!\n"
+        f"Pomáháš mi generovat lepší výtvory. 🤖"
     )
 
 
@@ -611,6 +706,8 @@ def build_application() -> Application:
     app.add_handler(CommandHandler("stav", cmd_stav))
     app.add_handler(CommandHandler("vytvor", cmd_vytvor))
     app.add_handler(CommandHandler("help", cmd_help))
+    app.add_handler(CommandHandler("moje", cmd_moje))
+    app.add_handler(CommandHandler("hodnoceni", cmd_hodnoceni))
     app.add_handler(MessageHandler(filters.COMMAND, cmd_help))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, fallback_message))
 
