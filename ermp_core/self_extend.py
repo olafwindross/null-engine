@@ -685,40 +685,42 @@ class SkillExecutor:
         except SyntaxError as exc:
             return False, None, f"SyntaxError: {exc}"
 
-        result_holder: Dict[str, Any] = {"result": None, "error": None}
-        timer: Optional[threading.Timer] = None
-
-        def _timeout_handler() -> None:
-            result_holder["error"] = "TimeoutError: exekuce přesáhla limit"
-
         sandbox_globals = self._build_safe_globals()
         sandbox_locals: Dict[str, Any] = {}
 
+        # Phase 1: exec the function definition (fast, in main thread)
         try:
-            timer = threading.Timer(self.timeout, _timeout_handler)
-            timer.daemon = True
-            timer.start()
-
             exec(code, sandbox_globals, sandbox_locals)  # noqa: S102
-
-            func = sandbox_locals.get("skill_func")
-            if func is None or not callable(func):
-                return False, None, "skill_func nebyla definována nebo není volatelná"
-
-            output = func(context)
-
-            if result_holder["error"] is not None:
-                return False, None, result_holder["error"]
-
-            return True, output, ""
-
         except Exception as exc:
-            if result_holder["error"] is not None:
-                return False, None, result_holder["error"]
-            return False, None, f"{type(exc).__name__}: {exc}"
-        finally:
-            if timer is not None:
-                timer.cancel()
+            return False, None, f"ExecError: {type(exc).__name__}: {exc}"
+
+        func = sandbox_locals.get("skill_func")
+        if func is None or not callable(func):
+            return False, None, "skill_func nebyla definována nebo není volatelná"
+
+        # Phase 2: run the function in a separate thread with timeout
+        # so that blocking/infinite-loop code cannot hang the main thread.
+        result_holder: Dict[str, Any] = {"result": None, "error": None}
+
+        def _run() -> None:
+            try:
+                result_holder["result"] = func(context)
+            except Exception as exc:
+                result_holder["error"] = f"{type(exc).__name__}: {exc}"
+
+        thread = threading.Thread(target=_run, daemon=True)
+        thread.start()
+        thread.join(timeout=self.timeout)
+
+        if thread.is_alive():
+            # Thread is still running after timeout — can't kill it in pure
+            # Python, but since it's a daemon we abandon it and report timeout.
+            return False, None, "TimeoutError: exekuce přesáhla limit"
+
+        if result_holder["error"] is not None:
+            return False, None, result_holder["error"]
+
+        return True, result_holder["result"], ""
 
     def execute_builtin(
         self, func: Callable[[dict], str], context: dict
