@@ -300,8 +300,19 @@ def _import_mutator():
         return None
 
 
-async def generate_ermp_link(description: str) -> Optional[str]:
-    """Zavolá generate_ermp_app a vrátí Telegraph odkaz (nebo None)."""
+TYPE_EMOJI = {
+    "game":      "🎮",
+    "web":       "🌐",
+    "tool":      "🛠️",
+    "pwa":       "📱",
+    "script":    "💻",
+    "document":  "📄",
+    "quiz":      "🧠",
+    "dashboard": "📊",
+}
+
+async def generate_ermp_link(description: str, ton_address: str = "", referral_code: str = "NULL") -> Optional[tuple]:
+    """Zavolá generate_ermp_app a vrátí (url, output_type) nebo None."""
     mutator = _import_mutator()
     if mutator is None:
         return None
@@ -312,11 +323,13 @@ async def generate_ermp_link(description: str) -> Optional[str]:
         return None
 
     try:
-        # generate_ermp_app může být sync i async – podporujeme oboje.
-        result = fn(description)
+        result = fn(description, ton_address=ton_address, referral_code=referral_code)
         if asyncio.iscoroutine(result):
             result = await result
-        return str(result) if result else None
+        # Nová verze vrací (url, output_type)
+        if isinstance(result, tuple) and len(result) == 2:
+            return result
+        return (str(result), "tool") if result else None
     except Exception:  # noqa: BLE001
         logger.exception("generate_ermp_app selhal")
         return None
@@ -486,22 +499,59 @@ async def cmd_vytvor(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
         return
 
     # Potvrzení příjmu požadavku
+    # Detekce typu pro uživatele ještě před generováním
+    from ermp_core.mutator import detect_output_type as _det
+    try:
+        detected = _det(description)
+    except Exception:
+        detected = "tool"
+    type_labels_pre = {
+        "game": "hru 🎮", "web": "web 🌐", "tool": "nástroj 🛠️",
+        "pwa": "mobilní app 📱", "script": "skript 💻",
+        "document": "dokument 📄", "quiz": "kvíz 🧠", "dashboard": "dashboard 📊",
+    }
+    detected_label = type_labels_pre.get(detected, "výsledek")
     status_msg = await update.message.reply_text(
-        "⚙️ Generuji aplikaci… chvilku strpení."
+        f"⚙️ Rozpoznal jsem: *{detected_label}*\nGeneruji… chvilku strpení.",
+        parse_mode=ParseMode.MARKDOWN,
     )
 
+    # Načtení TON adresy a referral kódu z configu / DB
+    db = await load_db()
+    user_data = db.get(str(user_id), {})
+    ref_code = user_data.get("referral_code", "NULL")
+
     # Generování
-    link = await generate_ermp_link(description)
-    if link is None:
+    result = await generate_ermp_link(
+        description,
+        ton_address=TON_ADDRESS,
+        referral_code=ref_code,
+    )
+    if result is None:
         await status_msg.edit_text(
-            "❌ Generování selhalo. Zkus to prosím později nebo upřesni popis."
+            "❌ Generování selhalo. Zkus to prosím znovu nebo upřesni popis."
         )
         return
 
+    url, output_type = result
+    emoji = TYPE_EMOJI.get(output_type, "🛠️")
+    type_labels = {
+        "game": "Hra", "web": "Web", "tool": "Nástroj",
+        "pwa": "Mobilní App", "script": "Skript",
+        "document": "Dokument", "quiz": "Kvíz", "dashboard": "Dashboard",
+    }
+    type_label = type_labels.get(output_type, output_type.capitalize())
+
+    # Uložit požadavek do DB pro autonomní analýzu
+    user_data.setdefault("requests", []).append(description)
+    db[str(user_id)] = user_data
+    await save_db(db)
+
     await status_msg.edit_text(
-        "✅ *Hotovo!*\n"
+        f"✅ *{emoji} {type_label} vygenerován!*\n"
         "──────────────────────\n"
-        f"📰 Tvá aplikace: {link}\n\n"
+        f"🔗 Odkaz: {url}\n\n"
+        "_Aplikace se otevře v prohlížeči. Po 24 hodinách se automaticky aktualizuje._\n\n"
         "Díky za použití NULL ENGINE 🤖",
         parse_mode=ParseMode.MARKDOWN,
     )
