@@ -1,0 +1,20 @@
+# NULL ENGINE – Python závislosti
+# ================================
+# Instalace:  pip install -r requirements.txt
+
+# Telegram Bot API
+python-telegram-bot>=20.0
+
+# Parsování config.yaml
+pyyaml>=6.0
+
+# HTTP požadavky (TON balance, FixedFloat, ChangeNow API)
+requests>=2.31.0
+
+# Telegraph pro publikování generovaných her na Telegraph stránkách
+telegraph>=2.2.0
+
+# Async HTTP klient (volitelně pro asynchronní API volání)
+aiohttp>=3.9.0
+
+# Poznámka: asyncio je součástí standardní knihovny Pythonu – není třeba instalovat.

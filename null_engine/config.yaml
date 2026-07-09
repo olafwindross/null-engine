@@ -1,0 +1,93 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# NULL ENGINE – konfigurační soubor
+# ───────────────────────────────────────────────────────────────────────────
+# Tento soubor obsahuje všechny nastavení pro Telegram bota NULL ENGINE,
+# který generuje AI hry pomocí lokálního modelu (Ollama / mistral).
+#
+# Před prvním spuštěním vyplňte všechny hodnoty označené jako [VYPLŇTE].
+# Nikdy nesdílejte tento soubor s klíči veřejně!
+# ═══════════════════════════════════════════════════════════════════════════
+
+# ── TELEGRAM BOT ────────────────────────────────────────────────────────────
+# Token bota od @BotFather (https://t.me/BotFather)
+telegram_bot_token: "[VYPLŇTE: 123456789:ABCdefGHIjklMNOpqrSTUvwxYZ]"
+
+# ID administrátora (lze zjistit přes @userinfobot)
+# Pouze admin může spouštět správcovské příkazy
+admin_chat_id: "[VYPLŇTE: vaše_telegram_user_id]"
+
+# Volitelné: ID skupiny, kam bot může automaticky posílat nové hry
+# Ponechte prázdné pokud nepoužíváte
+default_group_id: ""
+
+# ── OLLAMA (lokální LLM) ────────────────────────────────────────────────────
+# URL lokálního Ollama serveru (výchozí: http://localhost:11434)
+ollama_url: "http://localhost:11434"
+
+# Název modelu pro generování her
+ollama_model: "mistral"
+
+# Teplota pro generování (0.0 = deterministické, 1.0 = kreativní)
+ollama_temperature: 0.8
+
+# Maximální počet tokenů pro generování jedné hry
+ollama_max_tokens: 4096
+
+# ── TON BLOCKCHAIN ───────────────────────────────────────────────────────────
+# TON adresa, kterou bot monitoruje pro příchozí platby
+# (zde se shromažďují TON od uživatelů)
+ton_address: "[VYPLŇTE: EQ... nebo UQ...]"
+
+# Práh v TON, při kterém se spustí automatický swap (výchozí: 5)
+swap_threshold_ton: 5
+
+# ── SKRILL (deposit adresa pro USDT) ─────────────────────────────────────────
+# Skrill adresa, na kterou se pošle swappovaný USDT (BEP-20 / BSC)
+skrill_deposit_address: "[VYPLŇTE: 0x... – USDT BEP-20 adresa napojená na Skrill]"
+
+# ── FIXEDFLOAT API (primární swap provider) ──────────────────────────────────
+# API klíč a secret z FixedFloat (https://fixedfloat.com)
+# Zaregistrujte se a vytvořte API klíč v nastavení účtu
+fixedfloat_api_key: "[VYPLŇTE nebo nechte prázdné]"
+fixedfloat_api_secret: "[VYPLŇTE nebo nechte prázdné]"
+
+# ── CHANGENOW API (fallback swap provider) ───────────────────────────────────
+# API klíč z ChangeNow (https://changenow.io)
+# Může být prázdný – použije se veřejný endpoint
+changenow_api_key: ""
+
+# ── GENEROVÁNÍ HER ───────────────────────────────────────────────────────────
+# Maximální počet her generovaných za den (ochrana proti přetížení)
+max_games_per_day: 20
+
+# Maximální počet hráčů na hru
+max_players_per_game: 6
+
+# Délka jednoho kola v hodinách
+round_duration_hours: 24
+
+# Jazyk generovaných her (cs = čeština, en = angličtina)
+game_language: "cs"
+
+# ── TELEGRAPH ────────────────────────────────────────────────────────────────
+# Telegraph access token (pro publikování her)
+# Získáte automaticky při prvním spuštění, nebo jej vygenerujte:
+#   python -c "from telegraph import Telegraph; t = Telegraph(); print(t.create_account('null_engine')['access_token'])"
+telegraph_token: ""
+
+# ── LOGOVÁNÍ ──────────────────────────────────────────────────────────────────
+# Úroveň logování (DEBUG, INFO, WARNING, ERROR)
+log_level: "INFO"
+
+# Cesta k log souboru pro swap operace
+swap_log_file: "swap_log.txt"
+
+# Cesta k hlavnímu log souboru
+engine_log_file: "null_engine.log"
+
+# ── POKROČILÉ ─────────────────────────────────────────────────────────────────
+# Interval kontroly TON zůstatku v minutách (výchozí: 30)
+swap_check_interval_minutes: 30
+
+# Timeout pro HTTP požadavky v sekundách
+http_timeout_seconds: 30
