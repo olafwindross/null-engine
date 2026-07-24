@@ -228,6 +228,38 @@ def _build_prompt(
 # Ollama volání
 # ---------------------------------------------------------------------------
 
+
+# ---------------------------------------------------------------------------
+# Cloud fallback – Pollinations API (zdarma, bez klíče, bez registrace)
+# ---------------------------------------------------------------------------
+
+POLLINATIONS_URL = "https://text.pollinations.ai/"
+
+def _call_pollinations(prompt: str, timeout: int = 120) -> str:
+    """Zavolá Pollinations free API a vrátí vygenerovaný text."""
+    try:
+        resp = requests.get(
+            POLLINATIONS_URL,
+            params={"prompt": prompt, "model": "openai"},
+            timeout=timeout,
+            headers={"Accept": "text/plain"},
+        )
+        resp.raise_for_status()
+        return resp.text
+    except Exception as exc:
+        raise RuntimeError(f"Pollinations API selhal: {exc}")
+
+
+def _call_llm(prompt: str, timeout: int = 180) -> str:
+    """Zkusí Ollama (lokální), pak Pollinations (cloud fallback)."""
+    # Pokus o lokální Ollama
+    try:
+        return _call_ollama(prompt, timeout=timeout)
+    except RuntimeError:
+        pass
+    # Fallback na Pollinations (zdarma, bez klíče)
+    return _call_pollinations(prompt, timeout=timeout)
+
 def _call_ollama(prompt: str, timeout: int = 180) -> str:
     """Zavolá lokální Ollama API a vrátí vygenerovaný text."""
     payload: Dict[str, Any] = {
@@ -339,8 +371,8 @@ def generate_ermp_app(
     # 2) Sestavení promptu
     prompt = _build_prompt(description, output_type, ton_address, referral_code)
 
-    # 3) Generování přes Ollama
-    raw = _call_ollama(prompt)
+    # 3) Generování přes LLM (Ollama → Pollinations fallback)
+    raw = _call_llm(prompt)
 
     # 4) Extrakce HTML
     html = _extract_html(raw)
