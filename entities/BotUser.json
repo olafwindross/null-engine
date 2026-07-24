@@ -1,0 +1,22 @@
+{
+  "properties": {
+    "first_name": {
+      "type": "string"
+    },
+    "rating_avg": {
+      "type": "number"
+    },
+    "requests_count": {
+      "type": "number"
+    },
+    "telegram_id": {
+      "type": "number"
+    },
+    "username": {
+      "type": "string"
+    }
+  },
+  "type": "object",
+  "required": [],
+  "name": "BotUser"
+}

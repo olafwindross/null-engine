@@ -1,0 +1,19 @@
+{
+  "properties": {
+    "description": {
+      "type": "string"
+    },
+    "telegram_id": {
+      "type": "number"
+    },
+    "telegraph_url": {
+      "type": "string"
+    },
+    "type": {
+      "type": "string"
+    }
+  },
+  "type": "object",
+  "required": [],
+  "name": "BotCreation"
+}
