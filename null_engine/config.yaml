@@ -10,11 +10,11 @@
 
 # ── TELEGRAM BOT ────────────────────────────────────────────────────────────
 # Token bota od @BotFather (https://t.me/BotFather)
-telegram_bot_token: "[VYPLŇTE: 123456789:ABCdefGHIjklMNOpqrSTUvwxYZ]"
+telegram_bot_token: "8540944414:AAE9iTq_qLy1zxDMaCzwNG6pS-CXBGdTQXo"
 
 # ID administrátora (lze zjistit přes @userinfobot)
 # Pouze admin může spouštět správcovské příkazy
-admin_chat_id: "[VYPLŇTE: vaše_telegram_user_id]"
+admin_chat_id: ""  # Není vyplněno
 
 # Volitelné: ID skupiny, kam bot může automaticky posílat nové hry
 # Ponechte prázdné pokud nepoužíváte
@@ -36,14 +36,14 @@ ollama_max_tokens: 4096
 # ── TON BLOCKCHAIN ───────────────────────────────────────────────────────────
 # TON adresa, kterou bot monitoruje pro příchozí platby
 # (zde se shromažďují TON od uživatelů)
-ton_address: "[VYPLŇTE: EQ... nebo UQ...]"
+ton_address: ""  # Není vyplněno — platby v TON neaktivní
 
 # Práh v TON, při kterém se spustí automatický swap (výchozí: 5)
 swap_threshold_ton: 5
 
 # ── SKRILL (deposit adresa pro USDT) ─────────────────────────────────────────
 # Skrill adresa, na kterou se pošle swappovaný USDT (BEP-20 / BSC)
-skrill_deposit_address: "[VYPLŇTE: 0x... – USDT BEP-20 adresa napojená na Skrill]"
+skrill_deposit_address: ""  # Není vyplněno — swap na Skrill neaktivní
 
 # ── FIXEDFLOAT API (primární swap provider) ──────────────────────────────────
 # API klíč a secret z FixedFloat (https://fixedfloat.com)
