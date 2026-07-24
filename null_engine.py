@@ -75,6 +75,33 @@ def _import_agent():
         logger.error("ermp_core.agent nelze importovat: %s", e)
         return None
 
+def _import_soul():
+    """Lazy import duše bota."""
+    try:
+        from ermp_core import soul as _soul_mod
+        return _soul_mod
+    except ImportError as e:
+        logger.error("ermp_core.soul nelze importovat: %s", e)
+        return None
+
+def _import_group():
+    """Lazy import skupinového modu."""
+    try:
+        from ermp_core import group_mode as _group_mod
+        return _group_mod
+    except ImportError as e:
+        logger.error("ermp_core.group_mode nelze importovat: %s", e)
+        return None
+
+def _import_viral():
+    """Lazy import virálního embed + auto-update."""
+    try:
+        from ermp_core import viral_and_update as _viral_mod
+        return _viral_mod
+    except ImportError as e:
+        logger.error("ermp_core.viral_and_update nelze importovat: %s", e)
+        return None
+
 # ---------------------------------------------------------------------------
 # Načítání konfigurace
 # ---------------------------------------------------------------------------
@@ -419,19 +446,32 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     link = await referral_link(user_id)
 
+    # ── Soul: personalizované přivítání ─────────────────────────────────────
+    soul_mod = _import_soul()
+    greeting = ""
+    if soul_mod:
+        try:
+            first_name = update.effective_user.first_name or ""
+            relation = soul_mod.UserRelation(str(user_id), first_name)
+            relation.record_interaction("/start")
+            voice = soul_mod.SoulVoice(relation)
+            greeting = voice.greet()
+        except Exception as e:
+            logger.warning("Soul greet selhal: %s", e)
+
+    # Sestavení zprávy
+    soul_intro = greeting + "\n\n" if greeting else ""
     text = (
-        "🤖 *NULL ENGINE*\n"
-        "──────────────────────\n"
-        "Vítej! Jsem autonomní generátor ERMP aplikací.\n\n"
-        "Co umím?\n"
-        "• Popíšeš, co chceš vytvořit (/vytvor <popis>)\n"
-        "• Já vygeneruji aplikaci a pošlu ti Telegraph odkaz.\n\n"
+        f"{soul_intro}"
         f"💰 *Cena:* {TON_PRICE_STR} jednorázově\n"
         "nebo *ZDARMA* při pozvání 3 přátel.\n\n"
         f"📢 *Tvůj referral odkaz:*\n{link}\n\n"
         "ℹ️ Příkazy:\n"
-        "/stav – tvůj aktuální stav\n"
+        "/stav – tvůj stav\n"
         "/vytvor <popis> – generování aplikace\n"
+        "/moje – tvoje výtvory\n"
+        "/schopnosti – co umím\n"
+        "/skupina – aktivuj ve skupině\n"
     )
 
     await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN)
@@ -668,12 +708,411 @@ async def cmd_hodnoceni(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
 
 async def fallback_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Zachytí zprávy, které nejsou příkazy – poradí uživateli."""
+    """Zachytí zprávy, které nejsou příkazy – odpoví s osobností NULL."""
+    if not update.effective_user or not update.message:
+        return
+    user_id = update.effective_user.id
+    text_in = update.message.text or ""
+
+    # ── Skupinový mod: reaguj jen na @mention ───────────────────────────────
+    chat_type = update.effective_chat.type if update.effective_chat else "private"
+    if chat_type in ("group", "supergroup"):
+        group_mod = _import_group()
+        if group_mod:
+            mgr = group_mod.get_manager()
+            if not mgr.is_active(update.effective_chat.id):
+                return  # Skupina nemá aktivovaný NULL ENGINE
+            # Reaguj jen když je bot @mentionnut
+            me = await context.bot.get_me()
+            if me.username and f"@{me.username}" not in text_in:
+                return
+
+    # ── Soul: odpověď s osobností ───────────────────────────────────────────
+    soul_mod = _import_soul()
+    if soul_mod:
+        try:
+            first_name = update.effective_user.first_name or ""
+            relation = soul_mod.UserRelation(str(user_id), first_name)
+            relation.record_interaction(text_in)
+            voice = soul_mod.SoulVoice(relation)
+
+            # Zkusíme special task (počasí, krypto, atd.) přes self_extend
+            ext_mod = None
+            try:
+                from ermp_core import self_extend
+                ext_mod = self_extend
+            except ImportError:
+                pass
+
+            if ext_mod:
+                loop = asyncio.get_event_loop()
+                special = await loop.run_in_executor(
+                    None, lambda: ext_mod.handle_special_task(text_in)
+                )
+                if special:
+                    await update.message.reply_text(special)
+                    return
+
+            # Normální odpověď s osobností
+            response = voice.respond_to_unknown(text_in)
+            if response:
+                await update.message.reply_text(response)
+                return
+        except Exception as e:
+            logger.warning("Soul fallback selhal: %s", e)
+
+    await update.message.reply_text(
+        "Napiš /vytvor <popis> a já to vytvořím. Nebo /help."
+    )
+
+# ---------------------------------------------------------------------------
+# Nové příkazy – schopnosti, nasa, tv, kod, skupinové
+# ---------------------------------------------------------------------------
+
+TYPE_EMOJI = {
+    "game": "🎮", "web": "🌐", "tool": "🛠️", "pwa": "📱",
+    "script": "💻", "document": "📄", "quiz": "🧠", "dashboard": "📊",
+}
+
+
+async def cmd_schopnosti(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Příkaz /schopnosti – živý seznam všeho co bot umí."""
     if not update.message:
         return
+
+    lines = [
+        "🤖 *NULL ENGINE — Schopnosti*\n"
+        "──────────────────────\n"
+        "*Vytváření (8 typů):*\n"
+        "🎮 Hry · 🌐 Weby · 🛠️ Nástroje\n"
+        "📱 PWA · 💻 Skripty · 📄 Dokumenty\n"
+        "🧠 Kvízy · 📊 Dashboardy\n\n"
+        "*Vestavěné dovednosti:*\n"
+    ]
+
+    # Načti dovednosti ze self_extend
+    try:
+        from ermp_core import self_extend
+        engine = self_extend.get_engine()
+        skills = engine.registry.list_skills()
+        if skills:
+            for s in skills[:12]:
+                lines.append(f"  ✓ {s}")
+        else:
+            lines.append("  ✓ Počasí · Krypto kurzy · Wikipedia")
+            lines.append("  ✓ Překlady · Kalkulačka · Novinky")
+    except Exception:
+        lines.append("  ✓ Počasí · Krypto kurzy · Wikipedia")
+        lines.append("  ✓ Překlady · Kalkulačka · Novinky")
+
+    lines.append("\n*Skupinové:*\n")
+    lines.append("  /skupina – aktivuj ve skupině\n")
+    lines.append("  /null_vyzva <tema> – spusť výzvu\n")
+    lines.append("  /null_leaderboard – žebříček\n")
+    lines.append("\n*Speciální:*\n")
+    lines.append("  /nasa <dotaz> – NASA-grade kód\n")
+    lines.append("  /tv – IPTV přijímač\n")
+    lines.append("  /kod <jazyk> <popis> – čistý kód")
+
+    await update.message.reply_text("\n".join(lines), parse_mode=ParseMode.MARKDOWN)
+
+
+async def cmd_nasa(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Příkaz /nasa <dotaz> – NASA-grade technický výstup."""
+    if not update.effective_user or not update.message:
+        return
+    if not context.args:
+        await update.message.reply_text("Použití: /nasa <dotaz>\nNapř: /nasa optimalizuj Dijkstra algoritmus pro 10M uzlů")
+        return
+
+    description = " ".join(context.args)
+    status = await update.message.reply_text("🚀 NASA-grade generování…")
+
+    agent_mod = _import_agent()
+    if agent_mod:
+        loop = asyncio.get_event_loop()
+        try:
+            user_id = update.effective_user.id
+            db = await load_db()
+            ref_code = db.get(str(user_id), {}).get("referral_code", "NULL")
+            agent = agent_mod.create_agent(str(user_id), TON_ADDRESS, ref_code)
+            # Override prompt s NASA-grade instrukcemi
+            nasa_desc = f"NASA-GRADE TASK: {description}. Požadavek: produkční kód, bez kompromisů, optimální časová složitost, edge cases, dokumentace."
+            result = await loop.run_in_executor(None, agent.generate, nasa_desc)
+            await status.edit_text(
+                f"🚀 *{result.get('title','Výsledek')}*\n"
+                f"──────────────────────\n"
+                f"🔗 {result['url']}\n\n"
+                "_NASA-grade výstup._",
+                parse_mode=ParseMode.MARKDOWN,
+            )
+            return
+        except Exception as e:
+            logger.error("NASA generování selhalo: %s", e)
+
+    await status.edit_text("NASA generování selhalo. Zkus to znovu.")
+
+
+async def cmd_tv(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Příkaz /tv – IPTV přijímač z volných streamů."""
+    if not update.message:
+        return
+    status = await update.message.reply_text("📺 Stahuji playlist…")
+
+    try:
+        import requests as req
+        resp = req.get(
+            "https://raw.githubusercontent.com/iptv-org/iptv/master/index.m3u",
+            timeout=15,
+        )
+        playlist = resp.text if resp.status_code == 200 else ""
+
+        if not playlist:
+            await status.edit_text("❌ Nepodařilo se stáhnout playlist.")
+            return
+
+        # Parse first 20 channels
+        channels = []
+        lines = playlist.split("\n")
+        for i, line in enumerate(lines):
+            if line.startswith("#EXTINF"):
+                name = line.split(",")[-1].strip() if "," in line else f"Kanal {len(channels)+1}"
+                if i + 1 < len(lines) and lines[i + 1].startswith("http"):
+                    channels.append({"name": name, "url": lines[i + 1]})
+            if len(channels) >= 20:
+                break
+
+        # Build HTML IPTV player
+        channel_items = ""
+        for ch in channels:
+            channel_items += f'<div class="ch" onclick="play(\\"{ch["url"]}\\")">{ch["name"]}</div>\n'
+
+        html = f"""<!DOCTYPE html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NULL TV</title><style>
+body{{margin:0;background:#111;color:#fff;font-family:system-ui}}
+.header{{padding:16px;background:#222;text-align:center;font-size:20px;font-weight:bold}}
+.player{{width:100%;max-width:640px;margin:0 auto;display:block}}
+.video{{width:100%;background:#000}}
+.channels{{padding:8px;max-width:640px;margin:0 auto}}
+.ch{{padding:10px;border:1px solid #333;border-radius:6px;margin:4px 0;cursor:pointer}}
+.ch:hover{{background:#222}}
+</style></head><body>
+<div class="header">📺 NULL TV — {len(channels)} stanic</div>
+<video class="video" id="v" controls></video>
+<div class="channels">{channel_items}</div>
+<script>
+function play(url){{var v=document.getElementById('v');v.src=url;v.play();}}
+</script>
+</body></html>"""
+
+        # Publikovat přes Telegraph
+        from ermp_core.mutator import publish_html
+        url = publish_html(html, "NULL TV")
+        await status.edit_text(f"📺 *NULL TV* — {len(channels)} stanic\n🔗 {url}", parse_mode=ParseMode.MARKDOWN)
+    except Exception as e:
+        logger.error("TV selhalo: %s", e)
+        await status.edit_text("❌ TV selhalo. Zkus to později.")
+
+
+async def cmd_kod(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Příkaz /kod <jazyk> <popis> – čistý kód v daném jazyce."""
+    if not update.effective_user or not update.message:
+        return
+    if not context.args or len(context.args) < 2:
+        await update.message.reply_text("Použití: /kod <jazyk> <popis>\nNapř: /kod python web scraper pro sreality.cz")
+        return
+
+    lang = context.args[0]
+    description = " ".join(context.args[1:])
+    status = await update.message.reply_text(f"💻 Generuji {lang} kód…")
+
+    try:
+        import requests as req
+        prompt = (
+            f"Jsi expert programátor. Napiš kompletní, produkční kód v jazyce {lang}.\n\n"
+            f"Úkol: {description}\n\n"
+            f"Vrať POUZE kód v code bloku. Žádné vysvětlení.\n"
+            f"```{lang}\n// kód zde\n```"
+        )
+        resp = req.post(
+            "http://localhost:11434/api/generate",
+            json={"model": "mistral", "prompt": prompt, "stream": False,
+                  "options": {"temperature": 0.3, "num_predict": 4000}},
+            timeout=120,
+        )
+        code = resp.json().get("response", "")
+
+        # Pošli jako code message
+        if len(code) > 4000:
+            code = code[:4000] + "\n... (zkráceno)"
+        await status.edit_text(f"💻 *{lang}* — {description[:40]}\n\n```{lang}\n{code}\n```", parse_mode=ParseMode.MARKDOWN)
+    except Exception as e:
+        logger.error("Kód generování selhalo: %s", e)
+        await status.edit_text("❌ Generování kódu selhalo. Je Ollama spuštěna?")
+
+
+# ---------------------------------------------------------------------------
+# Skupinové příkazy
+# ---------------------------------------------------------------------------
+
+async def cmd_skupina(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Příkaz /skupina – aktivuje NULL ENGINE ve skupině (jen admin)."""
+    if not update.effective_chat or not update.effective_user:
+        return
+    chat = update.effective_chat
+    if chat.type not in ("group", "supergroup"):
+        await update.message.reply_text("Tento příkaz funguje jen ve skupinách.")
+        return
+
+    group_mod = _import_group()
+    if not group_mod:
+        await update.message.reply_text("Skupinový mod není dostupný.")
+        return
+
+    mgr = group_mod.get_manager()
+    if mgr.is_active(chat.id):
+        await update.message.reply_text("✅ NULL ENGINE už je ve skupině aktivní!")
+        return
+
+    mgr.activate_group(chat.id, chat.title or "Skupina")
     await update.message.reply_text(
-        "Nerozumím. Použij /start, /stav, /vytvor <popis> nebo /help."
+        "🤖 *NULL ENGINE aktivován!*\n\n"
+        "Od teď:‎\n"
+        "• @mentionni mě + popis → vygeneruji aplikaci\n"
+        "• /null_vyzva <tema> → spusť skupinovou výzvu\n"
+        "• /null_leaderboard → žebříček tvůrců\n\n"
+        "Každý výtvor nese referral odkaz tvůrce — virální růst! 🚀",
+        parse_mode=ParseMode.MARKDOWN,
     )
+
+
+async def cmd_null_vyzva(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Příkaz /null_vyzva <tema> – spustí 24h výzvu ve skupině."""
+    if not update.effective_chat or not update.message:
+        return
+    chat = update.effective_chat
+    if chat.type not in ("group", "supergroup"):
+        await update.message.reply_text("Výzvy fungují jen ve skupinách.")
+        return
+
+    group_mod = _import_group()
+    if not group_mod:
+        return
+
+    mgr = group_mod.get_manager()
+    if not mgr.is_active(chat.id):
+        await update.message.reply_text("Nejprve aktivuj NULL ENGINE: /skupina")
+        return
+
+    if not context.args:
+        await update.message.reply_text("Použití: /null_vyzva <tema>\nNapř: /null_vyzva nejlepší arkáda")
+        return
+
+    topic = " ".join(context.args)
+    result = mgr.start_challenge(chat.id, topic, hours=24)
+
+    if result.get("success"):
+        deadline = result.get("deadline", "?")
+        await update.message.reply_text(
+            f"🏁 *VÝZVA SPUŠTENA!*\n"
+            f"──────────────────────\n"
+            f"Téma: *{topic}*\n"
+            f"Konec: {deadline}\n\n"
+            f"Tvořte: /vytvor <popis>\n"
+            f"Hlasujte 👍 na výtvory ostatních!\n"
+            f"Vítěz získá odznak 🥇",
+            parse_mode=ParseMode.MARKDOWN,
+        )
+    else:
+        await update.message.reply_text(f"Výzvu nelze spustit: {result.get('reason', 'neznámá chyba')}")
+
+
+async def cmd_null_leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Příkaz /null_leaderboard – žebříček tvůrců ve skupině."""
+    if not update.effective_chat or not update.message:
+        return
+    chat = update.effective_chat
+
+    group_mod = _import_group()
+    if not group_mod:
+        return
+
+    mgr = group_mod.get_manager()
+    if not mgr.is_active(chat.id):
+        await update.message.reply_text("NULL ENGINE není ve skupině aktivní. Použij /skupina")
+        return
+
+    lb = mgr.get_leaderboard(chat.id, top_n=10)
+    if not lb:
+        await update.message.reply_text("Žádní tvůrci zatím. Buď první! /vytvor <popis>")
+        return
+
+    lines = [f"🏆 *LEADERBOARD — {chat.title or 'Skupina'}*\n─────────────────"]
+    medals = ["🥇", "🥈", "🥉"]
+    for i, entry in enumerate(lb):
+        medal = medals[i] if i < 3 else f"{i+1}."
+        lines.append(
+            f"{medal} {entry['name']} "
+            f"({entry['creations']} výtvorů, {entry['wins']} výher)"
+        )
+    await update.message.reply_text("\n".join(lines), parse_mode=ParseMode.MARKDOWN)
+
+
+# ---------------------------------------------------------------------------
+# Periodické úlohy — auto-update + proaktivní zprávy
+# ---------------------------------------------------------------------------
+
+async def periodic_auto_update(app: Application) -> None:
+    """Každých 6 hodin zkontroluje GitHub pro nové verze a hot-reloadne."""
+    import asyncio as _aio
+    while True:
+        await _aio.sleep(6 * 3600)
+        try:
+            viral_mod = _import_viral()
+            if not viral_mod:
+                continue
+            updater = viral_mod.get_updater()
+            result = updater.check_for_updates()
+            if result and result.get("has_update"):
+                logger.info("Auto-update: nový commit %s", result.get("sha", "?"))
+                apply_result = updater.download_and_apply_updates()
+                if apply_result.get("success"):
+                    updated = ", ".join(apply_result.get("updated_files", []))
+                    logger.info("Hot-reload dokončen: %s", updated)
+                else:
+                    logger.warning("Auto-update selhal: %s", apply_result.get("errors", []))
+        except Exception as e:
+            logger.warning("Periodic auto-update chyba: %s", e)
+
+
+async def periodic_proactive(app: Application) -> None:
+    """Každých 6 hodin pošle proaktivní zprávy eligible uživatelům."""
+    import asyncio as _aio
+    while True:
+        await _aio.sleep(6 * 3600)
+        try:
+            soul_mod = _import_soul()
+            if not soul_mod:
+                continue
+            proactive = soul_mod.get_proactive_engine()
+            eligible = proactive.get_eligible_users()
+            for uid_str in eligible:
+                try:
+                    relation = soul_mod.UserRelation(uid_str)
+                    voice = soul_mod.SoulVoice(relation)
+                    loop = asyncio.get_event_loop()
+                    msg = await loop.run_in_executor(None, voice.proactive_message)
+                    if msg:
+                        uid = int(uid_str)
+                        await app.bot.send_message(chat_id=uid, text=msg)
+                        proactive.mark_contacted(uid_str)
+                        logger.info("Proaktivní zpráva poslána uživateli %s", uid_str)
+                except Exception as e:
+                    logger.warning("Proaktivní zpráva pro %s selhala: %s", uid_str, e)
+        except Exception as e:
+            logger.warning("Periodic proactive chyba: %s", e)
+
 
 # ---------------------------------------------------------------------------
 # Lifecycly
@@ -687,6 +1126,12 @@ async def post_init(app: Application) -> None:
 
     # Spusť periodickou úlohu na pozadí.
     app.create_task(periodic_auto_generate(app))
+
+    # Spusť auto-update kontrolu každých 6 hodin.
+    app.create_task(periodic_auto_update(app))
+
+    # Spusť proaktivní zprávy každých 6 hodin.
+    app.create_task(periodic_proactive(app))
 
 
 # ---------------------------------------------------------------------------
@@ -708,6 +1153,13 @@ def build_application() -> Application:
     app.add_handler(CommandHandler("help", cmd_help))
     app.add_handler(CommandHandler("moje", cmd_moje))
     app.add_handler(CommandHandler("hodnoceni", cmd_hodnoceni))
+    app.add_handler(CommandHandler("schopnosti", cmd_schopnosti))
+    app.add_handler(CommandHandler("nasa", cmd_nasa))
+    app.add_handler(CommandHandler("tv", cmd_tv))
+    app.add_handler(CommandHandler("kod", cmd_kod))
+    app.add_handler(CommandHandler("skupina", cmd_skupina))
+    app.add_handler(CommandHandler("null_vyzva", cmd_null_vyzva))
+    app.add_handler(CommandHandler("null_leaderboard", cmd_null_leaderboard))
     app.add_handler(MessageHandler(filters.COMMAND, cmd_help))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, fallback_message))
 

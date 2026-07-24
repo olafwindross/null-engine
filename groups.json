@@ -1,0 +1,30 @@
+{
+  "-100123456": {
+    "group_id": -100123456,
+    "title": "Test Group",
+    "activated_at": null,
+    "leaderboard": {
+      "111": {
+        "name": "Jan",
+        "creations": 1,
+        "wins": 0,
+        "total_votes": 0
+      }
+    },
+    "challenge": {
+      "topic": "nejlepší arkáda",
+      "deadline": "2026-07-25T07:23:35.241587+00:00",
+      "submissions": [
+        {
+          "user_id": "111",
+          "user_name": "Jan",
+          "url": "https://telegra.ph/test",
+          "description": "arkáda",
+          "votes": 0,
+          "voters": []
+        }
+      ],
+      "active": true
+    }
+  }
+}

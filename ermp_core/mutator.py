@@ -351,6 +351,9 @@ def generate_ermp_app(
     if output_type in ("game", "web", "pwa", "dashboard"):
         html = _inject_mutation(html)
 
+    # 5b) Inject virálního watermarku (do všech výstupů)
+    html = _inject_viral_watermark(html, ton_address, referral_code)
+
     # 6) Nahrání na Telegraph
     try:
         token = _telegraph_create_account()
@@ -430,3 +433,15 @@ def auto_generate_template() -> None:
     except Exception as e:
         # Autonomní úloha – chyby logujeme, ale nepadáme
         print(f"[auto_generate_template] Chyba: {e}")
+
+
+def publish_html(html: str, title: str = "NULL ENGINE") -> str:
+    """
+    Publikuje HTML na Telegraph a vrátí URL.
+    Používá se pro IPTV a další standalone HTML výstupy.
+    """
+    token = _telegraph_create_account()
+    if not token:
+        raise RuntimeError("Telegraph účet nelze vytvořit")
+    url = _telegraph_create_page(token, html, title)
+    return url
