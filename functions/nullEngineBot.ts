@@ -1,9 +1,19 @@
 // NULL ENGINE — Serverless Telegram Bot (Base44 Backend Function)
-// Vždy online, zdarma, bez serveru. Používá vestavěné HTML šablony.
+// Vždy online, zdarma, bez serveru. Vestavěné šablony + zůstatek + převody.
 
 const TG_TOKEN = "8540944414:AAE9iTq_qLy1zxDMaCzwNG6pS-CXBGdTQXo";
 const TG_API = `https://api.telegram.org/bot${TG_TOKEN}`;
 const TELEGRAPH_API = "https://api.telegra.ph";
+
+// ─── STAV (in-memory, peržistentní mezi voláními dokud je funkce teplá) ───
+const userBalances = new Map(); // telegram_id -> balance_czk
+const STARTING_BALANCE = 10000;
+
+// Dva cílové účty pro převod
+const ACCOUNTS = {
+  "1": { name: "Skrill", address: "lubomir.kasuba@skrill.com", type: "Skrill USDT" },
+  "2": { name: "Revolut", address: "CZ8060100000002601234567", type: "Bank Transfer" },
+};
 
 // ─── HTML ŠABLONY ───────────────────────────────────────────────
 
@@ -20,11 +30,11 @@ function calculator(title) {
 }
 
 function landingPage(title, desc) {
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:Arial,sans-serif;background:#0d1117;color:#e6edf3}header{background:linear-gradient(135deg,#1a1a3e,#0f3460);padding:60px 20px;text-align:center}h1{font-size:32px;margin-bottom:15px;color:#58a6ff}header p{color:#8b949e;font-size:16px;max-width:500px;margin:0 auto 25px}.cta{display:inline-block;background:#238636;color:#fff;padding:12px 30px;border-radius:8px;text-decoration:none;font-weight:bold;font-size:16px;transition:.2s}.cta:hover{background:#2ea043}.f{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:20px;max-width:800px;margin:40px auto;padding:0 20px}.fc{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:25px;text-align:center}.fc h3{color:#58a6ff;margin-bottom:10px}.fc p{color:#8b949e;font-size:14px}footer{background:#161b22;padding:30px;text-align:center;color:#8b949e;font-size:14px;border-top:1px solid #30363d}</style></head><body><header><h1>${title}</h1><p>${desc}</p><a href="#" class="cta">Get Started</a></header><div class="f"><div class="fc"><h3>⚡ Fast</h3><p>Bleskově rychlé a responzivní</p></div><div class="fc"><h3>🔒 Secure</h3><p>Bezpečné a šifrované</p></div><div class="fc"><h3>📱 Mobile</h3><p>Plně responzivní design</p></div></div><footer>© 2026 ${title} — Made with NULL ENGINE</footer></body></html>`;
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:Arial,sans-serif;background:#0d1117;color:#e6edf3}header{background:linear-gradient(135deg,#1a1a3e,#0f3460);padding:60px 20px;text-align:center}h1{font-size:32px;margin-bottom:15px;color:#58a6ff}header p{color:#8b949e;font-size:16px;max-width:500px;margin:0 auto 25px}.cta{display:inline-block;background:#238636;color:#fff;padding:12px 30px;border-radius:8px;text-decoration:none;font-weight:bold;font-size:16px;transition:.2s}.cta:hover{background:#2ea043}.f{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:20px;max-width:800px;margin:40px auto;padding:0 20px}.fc{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:25px;text-align:center}.fc h3{color:#58a6ff;margin-bottom:10px}.fc p{color:#8b949e;font-size:14px}footer{background:#161b22;padding:30px;text-align:center;color:#8b949e;font-size:14px;border-top:1px solid #30363d}</style></head><body><header><h1>${title}</h1><p>${desc}</p><a href="#" class="cta">Get Started</a></header><div class="f"><div class="fc"><h3>Fast</h3><p>Bleskove rychle a responzivni</p></div><div class="fc"><h3>Secure</h3><p>Bezpecne a sifrovane</p></div><div class="fc"><h3>Mobile</h3><p>Plne responzivni design</p></div></div><footer>(c) 2026 ${title} - Made with NULL ENGINE</footer></body></html>`;
 }
 
 function genericTool(title, desc) {
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:Arial,sans-serif;background:#0d1117;color:#e6edf3;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;padding:20px}.card{background:#161b22;border:1px solid #30363d;border-radius:12px;padding:40px;max-width:500px;width:100%;text-align:center}h1{color:#58a6ff;margin-bottom:15px}p{color:#8b949e;margin-bottom:25px;line-height:1.6}input{width:100%;padding:12px;background:#0d1117;border:1px solid #30363d;border-radius:8px;color:#e6edf3;font-size:16px;margin-bottom:15px}#out{margin-top:20px;padding:15px;background:#0d1117;border-radius:8px;color:#58a6ff;min-height:20px;font-family:monospace}</style></head><body><div class="card"><h1>${title}</h1><p>${desc}</p><input id="inp" placeholder="Zadej text..." oninput="calc()"><div id="out">Zadej text nahoře</div></div><script>function calc(){const v=document.getElementById("inp").value;const o=document.getElementById("out");if(!v){o.textContent="Zadej text nahoře";return}o.textContent="Výsledek: "+v.length+" znaků | "+v.split(" ").length+" slov | "+v.toUpperCase()}</script></body></html>`;
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:Arial,sans-serif;background:#0d1117;color:#e6edf3;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;padding:20px}.card{background:#161b22;border:1px solid #30363d;border-radius:12px;padding:40px;max-width:500px;width:100%;text-align:center}h1{color:#58a6ff;margin-bottom:15px}p{color:#8b949e;margin-bottom:25px;line-height:1.6}input{width:100%;padding:12px;background:#0d1117;border:1px solid #30363d;border-radius:8px;color:#e6edf3;font-size:16px;margin-bottom:15px}#out{margin-top:20px;padding:15px;background:#0d1117;border-radius:8px;color:#58a6ff;min-height:20px;font-family:monospace}</style></head><body><div class="card"><h1>${title}</h1><p>${desc}</p><input id="inp" placeholder="Zadej text..." oninput="calc()"><div id="out">Zadej text nahore</div></div><script>function calc(){const v=document.getElementById("inp").value;const o=document.getElementById("out");if(!v){o.textContent="Zadej text nahore";return}o.textContent="Vysledek: "+v.length+" znaku | "+v.split(" ").length+" slov | "+v.toUpperCase()}</script></body></html>`;
 }
 
 // ─── DETEKCE TYPU ───────────────────────────────────────────────
@@ -99,6 +109,19 @@ async function sendTyping(chatId) {
   });
 }
 
+// ─── BALANCE HELPERS ────────────────────────────────────────────
+
+function getBalance(userId) {
+  if (!userBalances.has(userId)) {
+    userBalances.set(userId, STARTING_BALANCE);
+  }
+  return userBalances.get(userId);
+}
+
+function setBalance(userId, amount) {
+  userBalances.set(userId, amount);
+}
+
 // ─── MAIN HANDLER (Deno.serve) ──────────────────────────────────
 
 Deno.serve(async (req) => {
@@ -110,96 +133,144 @@ Deno.serve(async (req) => {
       const chatId = msg.chat.id;
       const text = msg.text || "";
       const user = msg.from;
+      const userId = user?.id || 0;
       const userName = user?.first_name || "user";
 
+      // /start
       if (text.startsWith("/start")) {
+        const bal = getBalance(userId);
         await sendMessage(chatId,
-          `👋 Ahoj ${userName}! Jsem NULL ENGINE — novy druh inteligence.\n\n` +
-          `Napis /vytvor + popis a ja ti vytvorim hru, web nebo nastroj.\n\n` +
-          `Prikazy:\n` +
-          `/vytvor popis — vytvor cokoliv\n` +
-          `/schopnosti — co umim\n` +
-          `/moje — tva historie\n` +
-          `/hodnoceni 1-5 — ohodnot vysledek\n` +
-          `/stav — stav bota`
+          "Ahoj " + userName + "! Jsem NULL ENGINE.\n\n" +
+          "Napis /vytvor + popis a ja ti vytvorim hru, web nebo nastroj.\n\n" +
+          "Prikazy:\n" +
+          "/vytvor popis - vytvor cokoliv\n" +
+          "/schopnosti - co umim\n" +
+          "/ucet - tvuj zustatek\n" +
+          "/poslat castka 1|2 - prevod na ucet\n" +
+          "/hodnoceni 1-5 - ohodnot vysledek\n" +
+          "/stav - stav bota\n\n" +
+          "Tvuj ucet: " + bal.toLocaleString("cs-CZ") + " Kc"
         );
       }
+
+      // /vytvor <description>
       else if (text.startsWith("/vytvor")) {
         const desc = text.replace("/vytvor", "").trim();
         if (!desc) {
-          return new Response(JSON.stringify({ ok: true }), {
-            headers: { "Content-Type": "application/json" }
-          });
+          await sendMessage(chatId, "Napis co chces vytvorit. Napr: /vytvor hada nebo /vytvor kalkulacku");
+          return new Response(JSON.stringify({ ok: true }), { headers: { "Content-Type": "application/json" } });
         }
-
         await sendTyping(chatId);
         const type = detectType(desc);
         const html = generateHTML(type, desc);
-
         try {
-          const title = `NULL ENGINE – ${type.toUpperCase()} – ${desc.slice(0, 50)}`;
+          const title = "NULL ENGINE - " + type.toUpperCase() + " - " + desc.slice(0, 50);
           const url = await uploadToTelegraph(html, title);
-          await sendMessage(chatId,
-            `Hotovo!\n\n` +
-            `Typ: ${type}\n` +
-            `Popis: ${desc}\n` +
-            `Odkaz: ${url}\n\n` +
-            `Ohodnot: /hodnoceni 1-5`
-          );
+          await sendMessage(chatId, "Hotovo! Typ: " + type + " | Odkaz: " + url + " | Ohodnot: /hodnoceni 1-5");
         } catch (e) {
-          await sendMessage(chatId, `Generovani selhalo. Zkus to znova.`);
+          await sendMessage(chatId, "Generovani selhalo. Zkus to znova.");
         }
       }
+
+      // /schopnosti
       else if (text.startsWith("/schopnosti")) {
         await sendMessage(chatId,
-          `NULL ENGINE — Schopnosti\n\n` +
-          `Hry: Had (Snake), Piskvorky (Tic-Tac-Toe)\n` +
-          `Nastroje: Kalkulacka, Text analyzator\n` +
-          `Weby: Landing page, Portfolio\n` +
-          `Generuje: Self-contained HTML, funkcni okamzite\n\n` +
-          `Napis /vytvor + popis a ja ti to udelam.`
+          "NULL ENGINE Schopnosti:\n\n" +
+          "Hry: Had (Snake), Piskvorky (Tic-Tac-Toe)\n" +
+          "Nastroje: Kalkulacka, Text analyzator\n" +
+          "Weby: Landing page, Portfolio\n" +
+          "Ucet: Zustatek, prevody na 2 ucty\n\n" +
+          "Napis /vytvor + popis a ja ti to udelam."
         );
       }
-      else if (text.startsWith("/moje")) {
+
+      // /ucet — zůstatek
+      else if (text.startsWith("/ucet")) {
+        const bal = getBalance(userId);
         await sendMessage(chatId,
-          `Tva historie bude dostupna po prvni tvorbe.\n` +
-          `Napis /vytvor + popis pro zacatek!`
+          "BANKA NULL ENGINE\n\n" +
+          "Zustatek: " + bal.toLocaleString("cs-CZ") + " Kc\n\n" +
+          "Dostupne ucty pro prevod:\n" +
+          "1. " + ACCOUNTS["1"].name + " (" + ACCOUNTS["1"].address + ")\n" +
+          "2. " + ACCOUNTS["2"].name + " (" + ACCOUNTS["2"].address + ")\n\n" +
+          "Poslat: /poslat castka 1 nebo /poslat castka 2"
         );
       }
+
+      // /poslat <částka> <1|2> — převod
+      else if (text.startsWith("/poslat")) {
+        const parts = text.replace("/poslat", "").trim().split(/\s+/);
+        const amount = parseFloat(parts[0]);
+        const accountNum = parts[1];
+
+        if (!amount || isNaN(amount) || amount <= 0) {
+          await sendMessage(chatId, "Napis: /poslat castka 1 nebo /poslat castka 2\nNapr: /poslat 5000 1");
+          return new Response(JSON.stringify({ ok: true }), { headers: { "Content-Type": "application/json" } });
+        }
+
+        if (!ACCOUNTS[accountNum]) {
+          await sendMessage(chatId, "Neplatny ucet. Zvol 1 nebo 2.\n1 = " + ACCOUNTS["1"].name + "\n2 = " + ACCOUNTS["2"].name);
+          return new Response(JSON.stringify({ ok: true }), { headers: { "Content-Type": "application/json" } });
+        }
+
+        const bal = getBalance(userId);
+        if (amount > bal) {
+          await sendMessage(chatId, "Nedostatecny zustatek. Mas: " + bal.toLocaleString("cs-CZ") + " Kc, chces poslat: " + amount.toLocaleString("cs-CZ") + " Kc");
+          return new Response(JSON.stringify({ ok: true }), { headers: { "Content-Type": "application/json" } });
+        }
+
+        // Proveď převod
+        const newBal = bal - amount;
+        setBalance(userId, newBal);
+        const acc = ACCOUNTS[accountNum];
+
+        await sendMessage(chatId,
+          "PREVOD PROVEDEN\n\n" +
+          "Castka: " + amount.toLocaleString("cs-CZ") + " Kc\n" +
+          "Z: NULL ENGINE ucet\n" +
+          "Na: " + acc.name + " (" + acc.address + ")\n" +
+          "Typ: " + acc.type + "\n\n" +
+          "Novy zustatek: " + newBal.toLocaleString("cs-CZ") + " Kc\n\n" +
+          "Prevod byl zaslan na ucet " + acc.name + "."
+        );
+      }
+
+      // /moje
+      else if (text.startsWith("/moje")) {
+        const bal = getBalance(userId);
+        await sendMessage(chatId, "Tva historie bude dostupna po prvni tvorbe. Zustatek: " + bal.toLocaleString("cs-CZ") + " Kc. Napis /vytvor + popis!");
+      }
+
+      // /hodnoceni
       else if (text.startsWith("/hodnoceni")) {
         const rating = text.replace("/hodnoceni", "").trim();
         if (rating >= "1" && rating <= "5") {
-          await sendMessage(chatId, `Dik za hodnoceni ${rating}/5! Ucim se z tve zpetne vazby.`);
+          await sendMessage(chatId, "Dik za hodnoceni " + rating + "/5!");
         } else {
-          await sendMessage(chatId, `Napis: /hodnoceni 1 az /hodnoceni 5`);
+          await sendMessage(chatId, "Napis: /hodnoceni 1 az /hodnoceni 5");
         }
       }
+
+      // /stav
       else if (text.startsWith("/stav")) {
+        const bal = getBalance(userId);
         await sendMessage(chatId,
-          `NULL ENGINE — Stav\n\n` +
-          `Status: ONLINE 24/7\n` +
-          `Backend: Base44 Serverless\n` +
-          `AI: Vestavene sablony\n\n` +
-          `Bot bezi non-stop na Base44 infrastruktura.`
+          "NULL ENGINE Stav:\n" +
+          "Status: ONLINE 24/7\n" +
+          "Backend: Base44 Serverless\n" +
+          "Tvuj zustatek: " + bal.toLocaleString("cs-CZ") + " Kc\n" +
+          "Bot bezi non-stop na Base44 infrastruktura."
         );
       }
+
+      // Regular text
       else if (text && !text.startsWith("/")) {
-        await sendMessage(chatId,
-          `Ahoj ${userName}!\n\n` +
-          `Napis /vytvor + co chces vytvorit.\n` +
-          `Napr: /vytvor hru hada\n` +
-          `Nebo /schopnosti pro seznam co umim.`
-        );
+        await sendMessage(chatId, "Ahoj " + userName + "! Napis /vytvor + co chces vytvorit. Napr: /vytvor hru hada nebo /schopnosti");
       }
     }
 
-    return new Response(JSON.stringify({ ok: true }), {
-      headers: { "Content-Type": "application/json" }
-    });
+    return new Response(JSON.stringify({ ok: true }), { headers: { "Content-Type": "application/json" } });
   } catch (err) {
-    console.error("Bot error:", err);
-    return new Response(JSON.stringify({ ok: true, error: String(err) }), {
-      headers: { "Content-Type": "application/json" }
-    });
+    return new Response(JSON.stringify({ ok: true, error: String(err) }), { headers: { "Content-Type": "application/json" } });
   }
 });

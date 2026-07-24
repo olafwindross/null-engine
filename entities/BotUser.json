@@ -1,5 +1,8 @@
 {
   "properties": {
+    "balance_czk": {
+      "type": "number"
+    },
     "first_name": {
       "type": "string"
     },
