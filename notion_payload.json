@@ -1,0 +1,51 @@
+{
+  "parent": {"page_id": "3a70ded5-ebb3-80ad-9700-e1ff05011991"},
+  "properties": {
+    "title": {
+      "type": "title",
+      "title": [{"type": "text", "text": {"content": "NULL ENGINE — Vývoj projektu"}}]
+    }
+  },
+  "children": [
+    {"object": "block", "type": "callout", "callout": {"rich_text": [{"type": "text", "text": {"content": "Poslední aktualizace: 24. cervence 2026\nRepozitar: github.com/olafwindross/null-engine\nStatus: Jadro hotove — dalsi faze: skupinovy mod + viralni smycka"}}], "icon": {"type": "emoji", "emoji": "🤖"}}},
+    {"object": "block", "type": "heading_2", "heading_2": {"rich_text": [{"type": "text", "text": {"content": "Architektura"}}]}},
+    {"object": "block", "type": "paragraph", "paragraph": {"rich_text": [{"type": "text", "text": {"content": "NULL ENGINE je autonomni Telegram bot s vlastni kognitivni architekturou (NULL MIND). Nebezi v cloude — cela AI bezi lokalne pres Ollama (model mistral). Jedine externi API klice: Telegram bot token."}}]}},
+    {"object": "block", "type": "bulleted_list_item", "bulleted_list_item": {"rich_text": [{"type": "text", "text": {"content": "null_engine.py — hlavni bot, vsechny handlery, prikazy"}}]}},
+    {"object": "block", "type": "bulleted_list_item", "bulleted_list_item": {"rich_text": [{"type": "text", "text": {"content": "ermp_core/agent.py — ReAct smycka, pamet uzivatele, self-critique, self-learning"}}]}},
+    {"object": "block", "type": "bulleted_list_item", "bulleted_list_item": {"rich_text": [{"type": "text", "text": {"content": "ermp_core/soul.py — osobnost bota (NULL), nalady, vztahy s uzivateli, proaktivni zpravy"}}]}},
+    {"object": "block", "type": "bulleted_list_item", "bulleted_list_item": {"rich_text": [{"type": "text", "text": {"content": "ermp_core/mutator.py — generator 8 typu vystupu (game/web/tool/pwa/script/document/quiz/dashboard), publikace na Telegraph"}}]}},
+    {"object": "block", "type": "bulleted_list_item", "bulleted_list_item": {"rich_text": [{"type": "text", "text": {"content": "ermp_core/self_extend.py — samo-rozsirovani: bot si pise vlastni dovednosti, testuje v sandboxu, uklada do registry"}}]}},
+    {"object": "block", "type": "bulleted_list_item", "bulleted_list_item": {"rich_text": [{"type": "text", "text": {"content": "swap_to_skrill.py — automaticka smena TON na USDT (FixedFloat) a odeslani na Skrill deposit"}}]}},
+
+    {"object": "block", "type": "heading_2", "heading_2": {"rich_text": [{"type": "text", "text": {"content": "Hotove komponenty"}}]}},
+    {"object": "block", "type": "to_do", "to_do": {"rich_text": [{"type": "text", "text": {"content": "ReAct agentni smycka (analyze intent -> generate -> self-critique -> iterate -> publish)"}}], "checked": true}},
+    {"object": "block", "type": "to_do", "to_do": {"rich_text": [{"type": "text", "text": {"content": "Detekce 8 typu vystupu z prirozeneho jazyka"}}], "checked": true}},
+    {"object": "block", "type": "to_do", "to_do": {"rich_text": [{"type": "text", "text": {"content": "BotSoul — osobnost, nalady (meni se kazde 2h), UserRelation pamet"}}], "checked": true}},
+    {"object": "block", "type": "to_do", "to_do": {"rich_text": [{"type": "text", "text": {"content": "Self-learning engine — analyza zpetne vazby, extrakce vzoru pres Ollama"}}], "checked": true}},
+    {"object": "block", "type": "to_do", "to_do": {"rich_text": [{"type": "text", "text": {"content": "Self-extend — sandbox executor, 8 vestavenych dovednosti (pocasi, krypto, Wikipedia, preklad, kalkulacka, zpravy, IPTV, obrazky)"}}], "checked": true}},
+    {"object": "block", "type": "to_do", "to_do": {"rich_text": [{"type": "text", "text": {"content": "Proaktivni zpravy — bot se sam ozyva uzivatelum 1x denne"}}], "checked": true}},
+    {"object": "block", "type": "to_do", "to_do": {"rich_text": [{"type": "text", "text": {"content": "TON platby — kontrola pres TonCenter API, viralni odemknuti (3 pozvanky = free)"}}], "checked": true}},
+    {"object": "block", "type": "to_do", "to_do": {"rich_text": [{"type": "text", "text": {"content": "Auto-swap TON -> USDT pres FixedFloat -> Skrill deposit"}}], "checked": true}},
+    {"object": "block", "type": "to_do", "to_do": {"rich_text": [{"type": "text", "text": {"content": "Prikazy: /start /vytvor /moje /hodnoceni /schopnosti /nasa /tv /kod /stav"}}], "checked": true}},
+    {"object": "block", "type": "to_do", "to_do": {"rich_text": [{"type": "text", "text": {"content": "Install skripty (install.sh pro Linux/Mac)"}}], "checked": true}},
+    {"object": "block", "type": "to_do", "to_do": {"rich_text": [{"type": "text", "text": {"content": "Push na GitHub — vsechny soubory nahrany"}}], "checked": true}},
+
+    {"object": "block", "type": "heading_2", "heading_2": {"rich_text": [{"type": "text", "text": {"content": "Dalsi faze"}}]}},
+    {"object": "block", "type": "to_do", "to_do": {"rich_text": [{"type": "text", "text": {"content": "Skupinovy mod — @mention odpovedi, skupinove vyzvy, leaderboard top tvurcu"}}], "checked": false}},
+    {"object": "block", "type": "to_do", "to_do": {"rich_text": [{"type": "text", "text": {"content": "Viralni embed — kazdy vtvtor obsahuje watermark + odkaz na bota"}}], "checked": false}},
+    {"object": "block", "type": "to_do", "to_do": {"rich_text": [{"type": "text", "text": {"content": "Auto-update — bot si sahne novou verzi z GitHubu a hot-reloadne moduly bez restartu"}}], "checked": false}},
+    {"object": "block", "type": "to_do", "to_do": {"rich_text": [{"type": "text", "text": {"content": "NULL MIND kognitivni vrstvy — percepcce, metakognice, emocionalni inteligence"}}], "checked": false}},
+    {"object": "block", "type": "to_do", "to_do": {"rich_text": [{"type": "text", "text": {"content": "Integrace soul.py do null_engine.py — zatim existuje ale neni plne zapojena do odpovedi"}}], "checked": false}},
+
+    {"object": "block", "type": "heading_2", "heading_2": {"rich_text": [{"type": "text", "text": {"content": "Vysledky sub-agent analyzy (9. cervence 2026)"}}]}},
+    {"object": "block", "type": "paragraph", "paragraph": {"rich_text": [{"type": "text", "text": {"content": "Behem vyvoje bezely 2 paralelni sub-agenti:"}}]}},
+    {"object": "block", "type": "paragraph", "paragraph": {"rich_text": [{"type": "text", "text": {"content": "Sub-agent 1 (null_engine.py integrace) — dokonceno. Navrhnute bloky: personalizovane privitani pres SoulVoice, respond_to_unknown pro konverzace, handle_special_task pred generovanim, /schopnosti /nasa /tv /kod prikazy, proaktivni zpravy kazdych 6h. Vse syntakticky overeno."}}]}},
+    {"object": "block", "type": "paragraph", "paragraph": {"rich_text": [{"type": "text", "text": {"content": "Sub-agent 2 (self_extend.py) — modul existuje v workspace (926 radku, 8 dovednosti). Nutno pushout na GitHub."}}]}},
+
+    {"object": "block", "type": "heading_2", "heading_2": {"rich_text": [{"type": "text", "text": {"content": "Technicky stack"}}]}},
+    {"object": "block", "type": "paragraph", "paragraph": {"rich_text": [{"type": "text", "text": {"content": "Python 3.10+ · python-telegram-bot v20+ (async) · Ollama (mistral) · pyyaml · requests · zadne cloud sluzby · zadne API klice (krome Telegram)"}}]}},
+
+    {"object": "block", "type": "heading_2", "heading_2": {"rich_text": [{"type": "text", "text": {"content": "Deploy"}}]}},
+    {"object": "block", "type": "code", "code": {"rich_text": [{"type": "text", "text": {"content": "# 1. Vypln config.yaml\ntelegram_token: TVUJ_TOKEN\nton_address: TVUJ_TON_ADRESA\nskrill_usdt_address: TVUJ_BEP20_ADRESA\n\n# 2. Spust\npython null_engine.py"}}], "language": "bash"}}
+  ]
+}
