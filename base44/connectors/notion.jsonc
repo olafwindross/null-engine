@@ -1,0 +1,9 @@
+{
+  "type": "notion",
+  "scopes": [
+    "write:blocks",
+    "read:blocks",
+    "write:page",
+    "read:page"
+  ]
+}
